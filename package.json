@@ -1,11 +1,11 @@
 {
   "name": "ffa-proxy-server",
   "version": "1.0.0",
-  "description": "A personal CORS Anywhere proxy for the Feed Fusion Autoposter plugin.",
+  "description": "A simple and lightweight proxy for the Feed Fusion Autoposter plugin.",
   "main": "api/index.js",
-  "author": "Monimega",
+  "author": "kings",
   "license": "ISC",
   "dependencies": {
-    "cors-anywhere": "^0.4.4"
+    "axios": "^1.4.0"
   }
 }
