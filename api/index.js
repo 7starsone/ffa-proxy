@@ -1,36 +1,33 @@
-const http = require('http');
-const cors_proxy = require('cors-anywhere');
+const axios = require('axios');
 
-const proxy = cors_proxy.createServer({
-    originWhitelist: [],
-    requireHeader: ['origin', 'x-requested-with'],
-    removeHeaders: ['cookie', 'cookie2']
-});
+module.exports = async (req, res) => {
+    // L'URL di destinazione è tutto ciò che viene dopo la barra iniziale
+    // es. /https://www.sitepoint.com/sitepoint.rss
+    const urlToFetch = req.url.substring(1);
 
-module.exports = (req, res) => {
-    console.log("--- DEBUG VERCEL: Richiesta ricevuta. ---");
-    console.log(`DEBUG VERCEL: URL richiesto: ${req.url}`);
+    if (!urlToFetch || !urlToFetch.startsWith('http')) {
+        return res.status(400).send('Please provide a valid URL.');
+    }
 
-    // Creiamo un "falso" server per intercettare la risposta del proxy
-    const mockServer = new http.Server((proxyReq, proxyRes) => {
-        let body = [];
-        proxyRes.on('data', chunk => body.push(chunk));
-        proxyRes.on('end', () => {
-            const finalBody = Buffer.concat(body).toString();
-            const finalHeaders = proxyRes.getHeaders();
-
-            console.log("--- DEBUG VERCEL: Risposta dal proxy INTERCETTATA ---");
-            console.log(`DEBUG VERCEL: Status Code che il proxy sta per inviare: ${proxyRes.statusCode}`);
-            console.log("DEBUG VERCEL: Headers che il proxy sta per inviare:");
-            console.log(JSON.stringify(finalHeaders, null, 2));
-            console.log("--- DEBUG VERCEL: Fine intercettazione. Invio risposta finale. ---");
-
-            // Ora inviamo la risposta vera e propria, ma con l'header corretto
-            res.writeHead(proxyRes.statusCode, { ...finalHeaders, 'content-type': 'application/xml; charset=utf-8' });
-            res.end(finalBody);
+    try {
+        // Esegui una semplice richiesta GET, ma con uno User-Agent da browser
+        const response = await axios.get(urlToFetch, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+            },
+            // Imposta un timeout ragionevole per la richiesta a SitePoint
+            timeout: 20000 // 20 secondi
         });
-    });
-    
-    // Passiamo la richiesta originale al nostro proxy, che risponderà al nostro "falso" server
-    proxy.emit('request', req, new http.ServerResponse(req));
+
+        // Invia il contenuto della risposta (l'XML del feed)
+        // Imposta l'header corretto per far capire a SimplePie che è un feed
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/xml; charset=utf-8');
+        res.status(200).send(response.data);
+
+    } catch (error) {
+        console.error(error);
+        const statusCode = error.response ? error.response.status : 500;
+        const message = error.message || 'An error occurred while fetching the URL.';
+        res.status(statusCode).send(message);
+    }
 };
